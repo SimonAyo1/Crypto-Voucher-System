@@ -11,6 +11,13 @@ const port = 3000;
 
 app.use(express.json());
 
+app.get("/", (req, res, next) => {
+  res.json({
+    message: "Great!",
+  });
+  next();
+});
+
 app.use(AuthRouter);
 
 app.use(userRoutes);
