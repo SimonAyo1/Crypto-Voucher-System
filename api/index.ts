@@ -4,10 +4,14 @@ import connectToDB from "./db/conn";
 import { AuthRouter } from "./routes/AuthRoute";
 import userRoutes from "./routes/UserRoute";
 import voucherRoutes from "./routes/VoucherRoute";
+import cors from "cors";
+
 dotenv.config();
 
 const app = express();
 const port = 3000;
+
+app.use(cors());
 
 app.use(express.json());
 
