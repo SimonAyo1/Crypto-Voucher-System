@@ -1,42 +1,9 @@
 import { Request, Response } from "express";
 import userModel from "../models/Users";
 import { Voucher } from "../models/Voucher";
+import { VoucherController } from "./Voucher";
 
 export class UserController {
-  // Buy a voucher
-  static async buyVoucher(req: Request, res: Response): Promise<Response> {
-    try {
-      const { userId, voucherId } = req.body;
-
-      const user = await userModel.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const voucher = await Voucher.findById(voucherId);
-      if (!voucher) {
-        return res.status(404).json({ message: "Voucher not found" });
-      }
-
-      const newVoucher = {
-        code: voucher.code,
-        cryptoType: voucher.cryptoType,
-        amount: voucher.amount,
-        redeemed: false,
-        addedAt: new Date(),
-      };
-
-      user.vouchers.push(newVoucher);
-      await user.save();
-
-      return res
-        .status(200)
-        .json({ message: "Voucher added to user", voucher: newVoucher });
-    } catch (error) {
-      return res.status(500).json({ message: "Error buying voucher", error });
-    }
-  }
-
   // Get all users
   static async getAllUsers(req: Request, res: Response): Promise<Response> {
     try {
@@ -142,33 +109,39 @@ export class UserController {
   // Redeem a voucher
   static async redeemVoucher(req: Request, res: Response): Promise<Response> {
     try {
-      const { userId, code } = req.body;
+      const { voucherId, email, walletAddress, cryptoType } = req.body;
 
-      const user = await userModel.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const voucher = user.vouchers.find((voucher) => voucher.code === code);
-
-      if (!voucher) {
+      if (!voucherId || !email) {
         return res
-          .status(404)
-          .json({ message: "Customer does not have this voucher" });
+          .status(400)
+          .json({ message: "Voucher ID and email are required" });
       }
 
-      if (voucher.redeemed) {
-        return res.status(400).json({ message: "Voucher already redeemed" });
+      const user = await userModel
+        .findOne()
+        .where("email")
+        .equals(email)
+        .where("vouchers._id")
+        .equals(voucherId);
+
+      if (user) {
+        const voucher = user.vouchers.find(
+          (voucher: any) => voucher._id === voucherId
+        );
+
+        if (voucher.redeemed) {
+          return res.status(400).json({ message: "Voucher already redeemed" });
+        }
+
+        voucher.redeemed = true;
+        await user.save();
+
+        return res.status(200).json({ message: "Voucher redeemed", voucher });
       }
 
-      voucher.redeemed = true;
-      await user.save();
-
-      return res.status(200).json({ message: "Voucher redeemed", voucher });
+      return res.status(400).json({ message: "Validation Error" });
     } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Error redeeming voucher", error });
+      return res.status(400).json({ message: "Validation Error" });
     }
   }
 }

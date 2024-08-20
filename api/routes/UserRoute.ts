@@ -1,15 +1,23 @@
 import { Router } from "express";
 import { UserController } from "../controller/User";
+import { protect } from "../utill/protect";
+import { adminProtect } from "../utill/adminProtect";
 
 const userRoutes = Router();
 
-userRoutes.post("/users/buy-voucher", UserController.buyVoucher);
-
 userRoutes.get("/users", UserController.getAllUsers);
 
-userRoutes.put("/users/suspend/:userId", UserController.suspendUser);
+userRoutes.put(
+  "/users/suspend/:userId",
+  adminProtect,
+  UserController.suspendUser
+);
 
-userRoutes.put("/users/unsuspend/:userId", UserController.unsuspendUser);
+userRoutes.put(
+  "/users/unsuspend/:userId",
+  adminProtect,
+  UserController.unsuspendUser
+);
 
 userRoutes.get(
   "/users/:userId/redeemed-vouchers",
@@ -21,6 +29,6 @@ userRoutes.get(
   UserController.getUnredeemedVouchers
 );
 
-userRoutes.post("/users/redeem-voucher", UserController.redeemVoucher);
+userRoutes.post("/users/redeem-voucher", protect, UserController.redeemVoucher);
 
 export default userRoutes;

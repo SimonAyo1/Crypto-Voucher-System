@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { VoucherController } from "../controller/Voucher";
+import { adminProtect } from "../utill/adminProtect";
 
 const voucherRoutes = Router();
 
-voucherRoutes.post("/vouchers", VoucherController.createVoucher);
+voucherRoutes.post("/vouchers", adminProtect, VoucherController.createVoucher);
 voucherRoutes.get("/vouchers", VoucherController.getAllVouchers);
 voucherRoutes.get("/vouchers/:id", VoucherController.getVoucherById);
-voucherRoutes.put("/vouchers/:id", VoucherController.updateVoucher);
-voucherRoutes.delete("/vouchers/:id", VoucherController.deleteVoucher);
+voucherRoutes.put("/vouchers/:id", adminProtect, VoucherController.updateVoucher);
+voucherRoutes.delete("/vouchers/:id", adminProtect, VoucherController.deleteVoucher);
 
 export default voucherRoutes;

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Voucher } from "../models/Voucher";
 import crypto from "crypto";
+import userModel from "../models/Users";
 
 export class VoucherController {
   private static generateRandomCode(length: number): string {
@@ -79,6 +80,36 @@ export class VoucherController {
       return res.status(200).json({ message: "Voucher deleted successfully" });
     } catch (error) {
       return res.status(500).json({ message: "Error deleting voucher", error });
+    }
+  }
+
+  static async validateVoucherRedeem(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
+    try {
+      const { voucherId, email } = req.body;
+
+      if (!voucherId || !email) {
+        return res
+          .status(400)
+          .json({ message: "Voucher ID and email are required" });
+      }
+
+      const user = await userModel
+        .findOne()
+        .where("email")
+        .equals(email)
+        .where("vouchers._id")
+        .equals(voucherId);
+
+      if (user) {
+        return res.status(200).json({ message: "Validated successfully" });
+      }
+
+      return res.status(400).json({ message: "Validation Error" });
+    } catch (error) {
+      return res.status(400).json({ message: "Validation Error" });
     }
   }
 }

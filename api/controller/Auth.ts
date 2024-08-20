@@ -4,15 +4,16 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { Request, Response } from "express";
 import { sendResponse } from "../utill/response";
+import adminModel from "../models/Admin";
 dotenv.config();
 
 class AuthController {
   Login = async (req: Request, res: Response) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
+    const { email, password } = req.body;
+    if (!email || !password) {
       sendResponse("Bad request!", 400, false, null, res);
     }
-    const user = await UserModel.findOne({ username });
+    const user = await UserModel.findOne({ email });
     console.log(user);
     if (!user) {
       sendResponse(
@@ -44,7 +45,49 @@ class AuthController {
     }
 
     const token = jwt.sign(
-      { username, userId: (user as any).id },
+      { email, userId: (user as any)._id },
+      process.env.SECRET_KEY || "----",
+      {
+        expiresIn: "1h",
+      }
+    );
+    res?.json({
+      success: true,
+      token,
+      message: "Authentication successful",
+    });
+  };
+
+  AdminLogin = async (req: Request, res: Response) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      sendResponse("Bad request!", 400, false, null, res);
+    }
+    const user = await adminModel.findOne({ email });
+    if (!user) {
+      sendResponse("Authentication failed", 400, false, null, res);
+
+      return;
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user.toJSON().password as string
+    );
+
+    if (!isPasswordValid) {
+      sendResponse(
+        "Authentication failed, Wrong password!",
+        400,
+        false,
+        null,
+        res
+      );
+      return;
+    }
+
+    const token = jwt.sign(
+      { email, userId: (user as any)._id, role: "admin" },
       process.env.SECRET_KEY || "----",
       {
         expiresIn: "1h",
@@ -58,7 +101,7 @@ class AuthController {
   };
 
   SignUp = async (req: Request, res: Response) => {
-    if (!req.body?.password || !req.body?.username) {
+    if (!req.body?.password || !req.body?.email) {
       sendResponse("Bad request", 403, false, null, res);
       return;
     }
@@ -67,7 +110,7 @@ class AuthController {
 
     const registerObj = {
       password: hashedPassword,
-      username: req.body?.username,
+      email: req.body?.email,
     };
 
     try {

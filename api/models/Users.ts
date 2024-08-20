@@ -9,14 +9,14 @@ interface Voucher {
 }
 
 interface User extends Document {
-  username: string;
+  email: string;
   password: string;
   vouchers: Voucher[];
   suspended: boolean;
 }
 
 const userSchema = new Schema<User>({
-  username: {
+  email: {
     type: String,
     required: true,
     unique: true,
