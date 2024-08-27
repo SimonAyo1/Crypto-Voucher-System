@@ -1,7 +1,6 @@
 import { protect } from "../utill/protect";
 import { PaymentController } from "./../controller/paymentController";
 import express, { Router } from "express";
-const app = express();
 
 const paymentRoutes = Router();
 

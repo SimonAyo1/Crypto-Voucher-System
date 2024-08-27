@@ -5,43 +5,34 @@ import dotenv from "dotenv";
 import { Request, Response } from "express";
 import { sendResponse } from "../utill/response";
 import adminModel from "../models/Admin";
+import userModel from "../models/Users";
 dotenv.config();
 
 class AuthController {
   Login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
     if (!email || !password) {
-      sendResponse("Bad request!", 400, false, null, res);
+      return sendResponse("Invalid email or password!", 400, false, null, res);
     }
     const user = await UserModel.findOne({ email });
-    console.log(user);
     if (!user) {
-      sendResponse(
-        "Authentication failed, User does not exist!",
-        400,
-        false,
-        null,
-        res
-      );
-
-      return;
+      return sendResponse("Invalid email or password!", 400, false, null, res);
     }
 
     const isPasswordValid = await bcrypt.compare(
       password,
       user.toJSON().password as string
     );
-    console.log(user.toJSON(), "user.toJSON()", isPasswordValid);
 
+    console.log(isPasswordValid, "isPasswordValid");
     if (!isPasswordValid) {
-      sendResponse(
+      return sendResponse(
         "Authentication failed, Wrong password!",
         400,
         false,
         null,
         res
       );
-      return;
     }
 
     const token = jwt.sign(
@@ -54,7 +45,7 @@ class AuthController {
     res?.json({
       success: true,
       token,
-      message: "Authentication successful",
+      message: user,
     });
   };
 
@@ -114,10 +105,15 @@ class AuthController {
     };
 
     try {
+      const userExist = await userModel.findOne({ email: registerObj.email });
+      if (userExist) {
+        sendResponse("Email has been taken.", 400, false, null, res);
+        return;
+      }
       const user = await UserModel.create(registerObj);
       sendResponse("Registered successfully", 200, true, user, res);
     } catch (error) {
-      sendResponse("Internal server error", 500, false, error, res);
+      sendResponse(error.message, 500, false, error, res);
     }
   };
 }

@@ -7,11 +7,9 @@ export const sendResponse = (
   data: any,
   response: Response
 ) => {
-  response
-    .json({
-      message,
-      success,
-      data,
-    })
-    .status(statusCode);
+  response.status(statusCode).json({
+    message,
+    success,
+    data,
+  });
 };

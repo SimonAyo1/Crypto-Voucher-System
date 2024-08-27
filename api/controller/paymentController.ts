@@ -14,6 +14,7 @@ export class PaymentController {
   ): Promise<Response> {
     try {
       const { userId, voucherId } = req.body;
+      console.log(req.body)
 
       const voucher = await Voucher.findById(voucherId);
       if (!voucher) {
@@ -57,13 +58,15 @@ export class PaymentController {
     if (!toAddress || !amount) {
       return res
         .status(400)
-        .send("Please provide privateKeyWIF, toAddress, and amount.");
+        .json({
+          message: "Please provide privateKeyWIF, toAddress, and amount.",
+        });
     }
 
     try {
       // Initialize the private key
       const privateKey = PrivateKey.fromWIF(
-        ""
+        "T5LAtKoso1pEtbhW7v28UmsXVTtQ36AdhRr8GP6yMkAiG2aKvmni"
       );
       const fromAddress = privateKey.toPublicKey().toAddress().toString();
       // Get UTXOs for the sender's address
@@ -85,7 +88,7 @@ export class PaymentController {
       const txid = await PaymentController.broadcastTX(tx);
       res.json({ txid });
     } catch (error) {
-      res.status(500).send(`Error sending LTC: ${error.message}`);
+      res.status(500).json({ message: `Error sending LTC: ${error.message}` });
     }
   }
 
