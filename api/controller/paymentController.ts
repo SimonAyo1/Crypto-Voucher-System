@@ -119,7 +119,7 @@ export class PaymentController {
       });
     }
 
-    return res.status(200).json({ received: true });
+    return res.status(200).json({ received: true }); //
   }
 
   static async fetchLtcPriceInDollars(): Promise<number | null> {
