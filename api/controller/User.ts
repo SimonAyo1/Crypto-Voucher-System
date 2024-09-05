@@ -2,8 +2,10 @@ import { Request, Response } from "express";
 import userModel from "../models/Users";
 import { Voucher } from "../models/Voucher";
 import { VoucherController } from "./Voucher";
+import axios from "axios";
 
 export class UserController {
+
   // Get all users
   static async getAllUsers(req: Request, res: Response): Promise<Response> {
     try {
@@ -106,42 +108,5 @@ export class UserController {
     }
   }
 
-  // Redeem a voucher
-  static async redeemVoucher(req: Request, res: Response): Promise<Response> {
-    try {
-      const { voucherId, email, walletAddress, cryptoType } = req.body;
 
-      if (!voucherId || !email) {
-        return res
-          .status(400)
-          .json({ message: "Voucher ID and email are required" });
-      }
-
-      const user = await userModel
-        .findOne()
-        .where("email")
-        .equals(email)
-        .where("vouchers._id")
-        .equals(voucherId);
-
-      if (user) {
-        const voucher = user.vouchers.find(
-          (voucher: any) => voucher._id === voucherId
-        );
-
-        if (voucher.redeemed) {
-          return res.status(400).json({ message: "Voucher already redeemed" });
-        }
-
-        voucher.redeemed = true;
-        await user.save();
-
-        return res.status(200).json({ message: "Voucher redeemed", voucher });
-      }
-
-      return res.status(400).json({ message: "Validation Error" });
-    } catch (error) {
-      return res.status(400).json({ message: "Validation Error" });
-    }
-  }
 }

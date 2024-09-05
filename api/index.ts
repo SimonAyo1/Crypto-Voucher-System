@@ -8,6 +8,9 @@ import voucherRoutes from "./routes/VoucherRoute";
 import cors from "cors";
 import paymentRoutes from "./routes/PaymentRoute";
 import adminModel from "./models/Admin";
+import userModel from "./models/Users";
+import { Voucher } from "./models/Voucher";
+import { Payment } from "./models/Payment";
 
 dotenv.config();
 
@@ -36,6 +39,11 @@ app.use(paymentRoutes);
 const startApp = async () => {
   try {
     const db = await connectToDB();
+    await userModel.syncIndexes();
+    await adminModel.syncIndexes();
+    await Voucher.syncIndexes();
+    await Payment.syncIndexes();
+
     app.listen(port, () => {
       console.log(`Server is running on http://localhost:${port}`);
     });

@@ -1,23 +1,19 @@
 import { Request, Response } from "express";
 import { Voucher } from "../models/Voucher";
-import crypto from "crypto";
 import userModel from "../models/Users";
+import { generateRandomCode } from "../utill/helpers";
 
 export class VoucherController {
-  private static generateRandomCode(length: number): string {
-    return crypto.randomBytes(length).toString("hex").slice(0, length);
-  }
-
   static async createVoucher(req: Request, res: Response): Promise<Response> {
     try {
       const { cryptoType, amount } = req.body;
 
-      let code = VoucherController.generateRandomCode(12);
+      let code = generateRandomCode(12);
 
       let codeExists = await Voucher.findOne({ code });
 
       while (codeExists) {
-        code = VoucherController.generateRandomCode(12);
+        code = generateRandomCode(12);
         codeExists = await Voucher.findOne({ code });
       }
 
@@ -27,6 +23,7 @@ export class VoucherController {
       return res.status(500).json({ message: "Error creating voucher", error });
     }
   }
+  
   static async getAllVouchers(req: Request, res: Response): Promise<Response> {
     try {
       const vouchers = await Voucher.find();

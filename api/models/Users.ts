@@ -6,6 +6,7 @@ interface Voucher {
   redeemed: boolean;
   cryptoType: string;
   amount: number;
+  buyer_unique_voucher_code: string;
 }
 
 interface User extends Document {
@@ -27,11 +28,12 @@ const userSchema = new Schema<User>({
   },
   vouchers: [
     {
-      code: String,
+      code: { type: String, required: true },
       addedAt: { type: Date, default: Date.now },
       redeemed: { type: Boolean, default: false },
       cryptoType: { type: String, required: true },
       amount: { type: Number, required: true },
+      buyer_unique_voucher_code: { type: String, required: true },
     },
   ],
   suspended: {

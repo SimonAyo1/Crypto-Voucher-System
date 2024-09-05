@@ -29,6 +29,5 @@ userRoutes.get(
   UserController.getUnredeemedVouchers
 );
 
-userRoutes.post("/users/redeem-voucher", protect, UserController.redeemVoucher);
 
 export default userRoutes;
