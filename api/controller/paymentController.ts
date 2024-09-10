@@ -6,6 +6,7 @@ import userModel from "../models/Users";
 import { Voucher } from "../models/Voucher";
 import { Payment } from "../models/Payment";
 import { generateRandomCode } from "../utill/helpers";
+import { sendEmail } from "../utill/mail";
 
 interface FromAddress {
   address: string;
@@ -31,7 +32,6 @@ export class PaymentController {
   ): Promise<Response> {
     try {
       const { userId, voucherId } = req.body;
-      console.log(req.body);
 
       const voucher = await Voucher.findById(voucherId);
       if (!voucher) {
@@ -43,8 +43,10 @@ export class PaymentController {
         return res.status(404).json({ message: "User not found" });
       }
 
+      const price = await PaymentController.fetchLtcPriceInDollars();
+
       const paymentIntent = await stripe.paymentIntents.create({
-        amount: voucher.amount * 100,
+        amount: Math.ceil(price * voucher.amount * 100),
         currency: "usd",
         metadata: {
           userId,
@@ -75,6 +77,7 @@ export class PaymentController {
         pk: process.env.STRIPE_PUBLISHABLE_KEY,
       });
     } catch (error) {
+      console.error(error);
       return res
         .status(500)
         .json({ message: "Error creating payment intent", error });
@@ -88,10 +91,10 @@ export class PaymentController {
     const event = req.body;
 
     if (event.type === "payment_intent.succeeded") {
+    try {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-
+    
       const { userId, voucherId } = paymentIntent.metadata;
-
       const user = await userModel.findById(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -102,12 +105,12 @@ export class PaymentController {
         return res.status(404).json({ message: "Voucher not found" });
       }
 
-      const newVoucher = {
+      const newVoucher: any = {
         code: voucher.code,
         cryptoType: voucher.cryptoType,
         amount: voucher.amount,
         redeemed: false,
-        addedAt: new Date(),
+        addedAt: new Date().toISOString(),
         buyer_unique_voucher_code: generateRandomCode(16),
       };
 
@@ -117,6 +120,132 @@ export class PaymentController {
         paymentIntent: JSON.stringify({ paymentIntent }),
         voucherCode: voucher.code,
       });
+
+      const html = `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Thank You for Your Purchase</title>
+        <style>
+          body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            color: #333;
+          }
+          .container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+          }
+          .header {
+            background-color: #007bff;
+            color: #ffffff;
+            text-align: center;
+            padding: 20px;
+            font-size: 24px;
+          }
+          .content {
+            padding: 30px;
+          }
+          .content h1 {
+            font-size: 22px;
+            margin-bottom: 20px;
+          }
+          .content p {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+          }
+          .details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+          }
+          .details h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #007bff;
+          }
+          .details p {
+            margin: 5px 0;
+            font-size: 16px;
+          }
+          .footer {
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f4;
+            font-size: 14px;
+            color: #999;
+          }
+          .footer a {
+            color: #007bff;
+            text-decoration: none;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <!-- Email Header -->
+          <div class="header">
+            Thank You for Your Purchase!
+          </div>
+      
+          <!-- Email Body -->
+          <div class="content">
+            <h1>Hi,</h1>
+            <p>Thank you for purchasing a crypto voucher from us! We truly appreciate your business and are here to make sure you have the best experience possible.</p>
+            <p>Below are the details of your voucher:</p>
+      
+            <!-- Voucher Details -->
+            <div class="details">
+              <h2>Voucher Details</h2>
+              <p><strong>Voucher Code:</strong> ${
+                newVoucher.buyer_unique_voucher_code
+              }</p>
+              <p><strong>Voucher:</strong> ${newVoucher.amount} LTC</p>
+              <p><strong>Amount Paid:</strong> 
+              ${Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "USD",
+              }).format(paymentIntent.amount / 100)}
+            </p>
+            
+              <p><strong>Date of Purchase:</strong> ${newVoucher.addedAt}</p>
+            </div>
+      
+            <p>If you have any questions or need further assistance, feel free to <a href="mailto:support@vouchercv.com">contact us</a>.</p>
+      
+            <p>Best regards,</p>
+            <p><strong>CV Voucher</strong></p>
+          </div>
+      
+          <!-- Email Footer -->
+          <div class="footer">
+            <p>&copy; 2024 CV Voucher. All rights reserved.</p>
+            <p><a href="#">Unsubscribe</a> | <a href="#">Privacy Policy</a></p>
+          </div>
+        </div>
+      </body>
+      </html>
+      `;
+
+      await sendEmail({
+        subject: "Your Crypto Voucher Purchase is Complete! ",
+        to: user.email,
+        html,
+        text: "Thank You for Purchasing Your Crypto Voucher!",
+      });
+    } catch (error) {
+      console.log(error);
+    }
     }
 
     return res.status(200).json({ received: true }); //
