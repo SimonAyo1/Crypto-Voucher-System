@@ -16,6 +16,8 @@ export class UserController {
     }
   }
 
+ 
+
   // Suspend a user
   static async suspendUser(req: Request, res: Response): Promise<Response> {
     try {
