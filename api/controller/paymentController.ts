@@ -22,7 +22,9 @@ export class PaymentController {
 
   static createPaymentIntent: ctrlrFunc = async (req, res, next) => {
     try {
-      const { userId, voucherId } = req.body;
+      const { voucherId } = req.body;
+
+      const userId = req.user?.userId;
 
       const voucher = await Voucher.findById(voucherId);
       if (!voucher) {
@@ -103,6 +105,7 @@ export class PaymentController {
 
         const templatePath = path.join(
           __dirname,
+          "..",
           "templates",
           "buyVoucherEmailTemplate.html"
         );
@@ -248,6 +251,7 @@ export class PaymentController {
 
           // const htmlPath = path.join(
           //   __dirname,
+          //  '..',
           //   "templates",
           //   "redeemVoucherEmailTemplate.html"
           // );
