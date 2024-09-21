@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { VoucherController } from "../controller/Voucher";
-import { adminProtect } from "../utill/adminProtect";
+import { adminProtect } from "../middlewares/guardRoute";
 
 const voucherRoutes = Router();
 

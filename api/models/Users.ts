@@ -9,7 +9,7 @@ interface Voucher {
   buyer_unique_voucher_code: string;
 }
 
-interface User extends Document {
+export interface User extends Document {
   email: string;
   password: string;
   vouchers: Voucher[];

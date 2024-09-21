@@ -1,10 +1,14 @@
 import { Request, Response } from "express";
 import { Voucher } from "../models/Voucher";
 import userModel from "../models/Users";
-import { generateRandomCode } from "../utill/helpers";
+import { generateRandomCode, sendSuccessResponse } from "../utill/helpers";
+import { ctrlrFunc } from "controllerFunc";
+import createHttpError from "http-errors";
 
 export class VoucherController {
-  static async createVoucher(req: Request, res: Response): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static createVoucher: ctrlrFunc = async (req, res, next) => {
     try {
       const { cryptoType, amount } = req.body;
 
@@ -18,39 +22,47 @@ export class VoucherController {
       }
 
       const newVoucher = await Voucher.create({ cryptoType, amount, code });
-      return res.status(201).json(newVoucher);
+      return sendSuccessResponse(
+        res,
+        "Voucher created successfully",
+        newVoucher,
+        200
+      );
     } catch (error) {
-      return res.status(500).json({ message: "Error creating voucher", error });
+      next(createHttpError(500, "Error creating voucher", error));
     }
-  }
-  
-  static async getAllVouchers(req: Request, res: Response): Promise<Response> {
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static getAllVouchers: ctrlrFunc = async (req, res, next) => {
     try {
       const vouchers = await Voucher.find();
-      return res.status(200).json(vouchers);
+      return sendSuccessResponse(res, "", vouchers, 200);
     } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Error retrieving vouchers", error });
+      next(createHttpError(500, "Error fetching vouchers", error));
     }
-  }
+  };
 
-  static async getVoucherById(req: Request, res: Response): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static getVoucherById: ctrlrFunc = async (req, res, next) => {
     try {
       const { id } = req.params;
       const voucher = await Voucher.findById(id);
       if (!voucher) {
-        return res.status(404).json({ message: "Voucher not found" });
+        next(createHttpError.NotFound("Voucher not found"));
+        return;
       }
-      return res.status(200).json(voucher);
+      return sendSuccessResponse(res, "", voucher, 200);
     } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Error retrieving voucher", error });
+      next(createHttpError(500, "Error retrieving voucher", error));
     }
-  }
+  };
 
-  static async updateVoucher(req: Request, res: Response): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static updateVoucher: ctrlrFunc = async (req, res, next) => {
     try {
       const { id } = req.params;
       const updatedVoucher = await Voucher.findByIdAndUpdate(id, req.body, {
@@ -58,39 +70,40 @@ export class VoucherController {
         runValidators: true,
       });
       if (!updatedVoucher) {
-        return res.status(404).json({ message: "Voucher not found" });
+        next(createHttpError.NotFound("Voucher not found"));
+        return;
       }
-      return res.status(200).json(updatedVoucher);
+      return sendSuccessResponse(res, "", updatedVoucher, 200);
     } catch (error) {
-      return res.status(500).json({ message: "Error updating voucher", error });
+      next(createHttpError(500, "Error updating voucher", error));
     }
-  }
+  };
 
-  // Delete a voucher by ID
-  static async deleteVoucher(req: Request, res: Response): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static deleteVoucher: ctrlrFunc = async (req, res, next) => {
     try {
       const { id } = req.params;
       const deletedVoucher = await Voucher.findByIdAndDelete(id);
       if (!deletedVoucher) {
-        return res.status(404).json({ message: "Voucher not found" });
+        next(createHttpError.NotFound("Voucher not found"));
+        return;
       }
-      return res.status(200).json({ message: "Voucher deleted successfully" });
+      return sendSuccessResponse(res, "Voucher deleted successfully", 200);
     } catch (error) {
-      return res.status(500).json({ message: "Error deleting voucher", error });
+      next(createHttpError(500, "Error deleting voucher", error));
     }
-  }
+  };
 
-  static async validateVoucherRedeem(
-    req: Request,
-    res: Response
-  ): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static validateVoucherRedeem: ctrlrFunc = async (req, res, next) => {
     try {
       const { voucherId, email } = req.body;
 
       if (!voucherId || !email) {
-        return res
-          .status(400)
-          .json({ message: "Voucher ID and email are required" });
+        next(createHttpError.BadRequest());
+        return;
       }
 
       const user = await userModel
@@ -101,12 +114,14 @@ export class VoucherController {
         .equals(voucherId);
 
       if (user) {
-        return res.status(200).json({ message: "Validated successfully" });
+        return sendSuccessResponse(res, "Validated successfully", 200);
       }
 
-      return res.status(400).json({ message: "Validation Error" });
+      next(createHttpError(400, "Validation Error"));
+
+      return;
     } catch (error) {
-      return res.status(400).json({ message: "Validation Error" });
+      next(createHttpError(400, "Validation Error"));
     }
-  }
+  };
 }

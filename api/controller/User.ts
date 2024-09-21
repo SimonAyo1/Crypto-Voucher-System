@@ -1,114 +1,127 @@
-import { Request, Response } from "express";
-import userModel from "../models/Users";
-import { Voucher } from "../models/Voucher";
-import { VoucherController } from "./Voucher";
-import axios from "axios";
+import { NextFunction, Request, Response } from "express";
+import userModel, { User } from "../models/Users";
+import { sendSuccessResponse } from "../utill/helpers";
+import createHttpError from "http-errors";
+import { ctrlrFunc } from "controllerFunc";
 
 export class UserController {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // Get all users
-  static async getAllUsers(req: Request, res: Response): Promise<Response> {
-    try {
-      const users = await userModel.find();
-      return res.status(200).json(users);
-    } catch (error) {
-      return res.status(500).json({ message: "Error retrieving users", error });
+  static async findUserById(userId: string, res: Response) {
+    const user = await userModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
+    return user;
   }
 
- 
+  ////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // Suspend a user
-  static async suspendUser(req: Request, res: Response): Promise<Response> {
+  static getAllUsers: ctrlrFunc = async (req, res, next) => {
     try {
-      const { userId } = req.params;
+      const users = await userModel.find();
+      return sendSuccessResponse(
+        res,
+        "Users retrieved successfully",
+        users,
+        200
+      );
+    } catch (error) {
+      return next(createHttpError.InternalServerError(JSON.stringify(error)));
+    }
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static suspendUser: ctrlrFunc = async (req, res, next) => {
+    try {
+      const userId = req.params.userId;
 
       const user = await userModel.findByIdAndUpdate(
         userId,
         { suspended: true },
         { new: true }
       );
+
       if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        return next(createHttpError.NotFound());
       }
 
-      return res.status(200).json({ message: "User suspended", user });
+      return sendSuccessResponse(res, "User suspended successfully", {}, 200);
     } catch (error) {
-      return res.status(500).json({ message: "Error suspending user", error });
+      return next(createHttpError.InternalServerError(JSON.stringify(error)));
     }
-  }
+  };
 
-  // Unsuspend a user
-  static async unsuspendUser(req: Request, res: Response): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static unSuspendUser: ctrlrFunc = async (req, res, next) => {
     try {
-      const { userId } = req.params;
+      const userId = req.params.userId;
 
       const user = await userModel.findByIdAndUpdate(
         userId,
         { suspended: false },
         { new: true }
       );
+
       if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        return next(createHttpError.NotFound());
       }
 
-      return res.status(200).json({ message: "User unsuspended", user });
+      return sendSuccessResponse(res, "User unsuspended successfully", {}, 200);
     } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Error unsuspending user", error });
+      return next(createHttpError.InternalServerError(JSON.stringify(error)));
     }
-  }
+  };
 
-  // Get redeemed vouchers of a user
-  static async getRedeemedVouchers(
-    req: Request,
-    res: Response
-  ): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static getRedeemedVouchers: ctrlrFunc = async (req, res, next) => {
     try {
-      const { userId } = req.params;
+      const userId = req.user?.userId;
+      const user = await this.findUserById(userId, res);
 
-      const user = await userModel.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
+      if (!user) return;
 
-      const redeemedVouchers = user.vouchers.filter(
+      const redeemedVouchers = (user as User).vouchers.filter(
         (voucher) => voucher.redeemed
       );
-
-      return res.status(200).json(redeemedVouchers);
+      return sendSuccessResponse(
+        res,
+        "Redeemed vouchers retrieved",
+        redeemedVouchers,
+        200
+      );
     } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Error retrieving redeemed vouchers", error });
+      return next(
+        createHttpError(500, "Error retrieving redeemed vouchers", error)
+      );
     }
-  }
+  };
 
-  // Get unredeemed vouchers of a user
-  static async getUnredeemedVouchers(
-    req: Request,
-    res: Response
-  ): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static getUnredeemedVouchers: ctrlrFunc = async (req, res, next) => {
     try {
-      const { userId } = req.params;
+      const userId = req.user?.userId;
+      const user = await this.findUserById(userId, res);
 
-      const user = await userModel.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
+      if (!user) return;
 
-      const unredeemedVouchers = user.vouchers.filter(
+      const redeemedVouchers = (user as User).vouchers.filter(
         (voucher) => !voucher.redeemed
       );
-
-      return res.status(200).json(unredeemedVouchers);
+      return sendSuccessResponse(
+        res,
+        "Unredeemed vouchers retrieved",
+        redeemedVouchers,
+        200
+      );
     } catch (error) {
-      return res
-        .status(500)
-        .json({ message: "Error retrieving unredeemed vouchers", error });
+      return next(
+        createHttpError(500, "Error retrieving unredeemed vouchers", error)
+      );
     }
-  }
-
-
+  };
 }

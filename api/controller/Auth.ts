@@ -2,120 +2,128 @@ import UserModel from "../models/Users";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { Request, Response } from "express";
-import { sendResponse } from "../utill/response";
 import adminModel from "../models/Admin";
 import userModel from "../models/Users";
+import createHttpError from "http-errors";
+import { sendSuccessResponse } from "../utill/helpers";
+import { ctrlrFunc } from "controllerFunc";
 dotenv.config();
 
-class AuthController {
-  Login = async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return sendResponse("Invalid email or password!", 400, false, null, res);
-    }
-    const user = await UserModel.findOne({ email });
-    if (!user) {
-      return sendResponse("Invalid email or password!", 400, false, null, res);
-    }
+export class AuthController {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
 
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      user.toJSON().password as string
-    );
-
-    console.log(isPasswordValid, "isPasswordValid");
-    if (!isPasswordValid) {
-      return sendResponse(
-        "Authentication failed, Wrong password!",
-        400,
-        false,
-        null,
-        res
-      );
-    }
-
-    const token = jwt.sign(
-      { email, userId: (user as any)._id },
-      process.env.SECRET_KEY || "----",
-      {
-        expiresIn: "1h",
-      }
-    );
-    res?.json({
-      success: true,
-      token,
-      message: user,
-    });
-  };
-
-  AdminLogin = async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      sendResponse("Bad request!", 400, false, null, res);
-    }
-    const user = await adminModel.findOne({ email });
-    if (!user) {
-      sendResponse("Authentication failed", 400, false, null, res);
-
-      return;
-    }
-
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      user.toJSON().password as string
-    );
-
-    if (!isPasswordValid) {
-      sendResponse(
-        "Authentication failed, Wrong password!",
-        400,
-        false,
-        null,
-        res
-      );
-      return;
-    }
-
-    const token = jwt.sign(
-      { email, userId: (user as any)._id, role: "admin" },
-      process.env.SECRET_KEY || "----",
-      {
-        expiresIn: "1h",
-      }
-    );
-    res?.json({
-      success: true,
-      token,
-      message: "Authentication successful",
-    });
-  };
-
-  SignUp = async (req: Request, res: Response) => {
-    if (!req.body?.password || !req.body?.email) {
-      sendResponse("Bad request", 403, false, null, res);
-      return;
-    }
-
-    const hashedPassword = await bcrypt.hash(req.body?.password, 10);
-
-    const registerObj = {
-      password: hashedPassword,
-      email: req.body?.email,
-    };
-
+  static login: ctrlrFunc = async (req, res, next) => {
     try {
-      const userExist = await userModel.findOne({ email: registerObj.email });
-      if (userExist) {
-        sendResponse("Email has been taken.", 400, false, null, res);
-        return;
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return next(createHttpError(400, "Email and password are required"));
       }
-      const user = await UserModel.create(registerObj);
-      sendResponse("Registered successfully", 200, true, user, res);
+
+      const user = await UserModel.findOne({ email });
+      if (!user) {
+        return next(createHttpError(400, "Invalid email or password"));
+      }
+
+      const isPasswordValid = await bcrypt.compare(
+        password,
+        user.password as string
+      );
+      if (!isPasswordValid) {
+        return next(
+          createHttpError(400, "Authentication failed, wrong password")
+        );
+      }
+
+      const token = jwt.sign(
+        { email, userId: user._id },
+        process.env.SECRET_KEY || "default_secret_key",
+        { expiresIn: "1h" }
+      );
+
+      sendSuccessResponse(
+        res,
+        "Authentication successful",
+        { token, user: { email: user.email, id: user._id } },
+        200
+      );
     } catch (error) {
-      sendResponse(error.message, 500, false, error, res);
+      return next(createHttpError(500, "An error occurred during login"));
+    }
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static adminLogin: ctrlrFunc = async (req, res, next) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return next(createHttpError(400, "Email and password are required"));
+      }
+
+      const admin = await adminModel.findOne({ email });
+      if (!admin) {
+        return next(createHttpError(400, "Authentication failed"));
+      }
+
+      const isPasswordValid = await bcrypt.compare(
+        password,
+        admin.password as string
+      );
+      if (!isPasswordValid) {
+        return next(
+          createHttpError(400, "Authentication failed, wrong password")
+        );
+      }
+
+      const token = jwt.sign(
+        { email: admin.email, userId: admin._id, role: "admin" },
+        process.env.SECRET_KEY || "default_secret_key",
+        { expiresIn: "1h" }
+      );
+
+      sendSuccessResponse(
+        res,
+        "Authentication successful",
+        { email: admin.email, token },
+        200
+      );
+    } catch (error) {
+      return next(createHttpError(500, "An error occurred during admin login"));
+    }
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static signUp: ctrlrFunc = async (req, res, next) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return next(createHttpError(400, "Email and password are required"));
+      }
+
+      const existingUser = await userModel.findOne({ email });
+      if (existingUser) {
+        return next(createHttpError(400, "Email has already been taken"));
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const user = await userModel.create({
+        email,
+        password: hashedPassword,
+      });
+
+      sendSuccessResponse(
+        res,
+        "Registered successfully",
+        { email: user.email, id: user._id },
+        200
+      );
+    } catch (error) {
+      next(createHttpError(500, "An error occurred during registration"));
     }
   };
 }
-
-export const authController = new AuthController();

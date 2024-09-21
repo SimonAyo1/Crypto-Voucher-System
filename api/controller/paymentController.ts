@@ -1,49 +1,42 @@
-import axios from "axios";
-import { Request, Response } from "express";
 import stripe from "../config/stripeConfig";
 import Stripe from "stripe";
 import userModel from "../models/Users";
 import { Voucher } from "../models/Voucher";
 import { Payment } from "../models/Payment";
-import { generateRandomCode } from "../utill/helpers";
-import { sendEmail } from "../utill/mail";
+import {
+  fetchLtcPriceInDollars,
+  generateRandomCode,
+  readHTMLFile,
+  sendEmail,
+  sendLitecoinTransaction,
+  sendSuccessResponse,
+} from "../utill/helpers";
+import createHttpError from "http-errors";
+import { ctrlrFunc } from "controllerFunc";
+import path from "path";
 
-interface FromAddress {
-  address: string;
-  privateKey: string;
-}
-
-interface ToAddress {
-  address: string;
-  value: number;
-}
-
-interface LitecoinTransactionData {
-  fromAddress: FromAddress[];
-  to: ToAddress[];
-  fee: string;
-  changeAddress: string;
-}
+import Handlebars from "handlebars";
 
 export class PaymentController {
-  static async createPaymentIntent(
-    req: Request,
-    res: Response
-  ): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static createPaymentIntent: ctrlrFunc = async (req, res, next) => {
     try {
       const { userId, voucherId } = req.body;
 
       const voucher = await Voucher.findById(voucherId);
       if (!voucher) {
-        return res.status(404).json({ message: "Voucher not found" });
+        next(createHttpError(404, "Voucher not found"));
+        return;
       }
 
       const user = await userModel.findById(userId);
       if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        next(createHttpError(404, "User not found"));
+        return;
       }
 
-      const price = await PaymentController.fetchLtcPriceInDollars();
+      const price = await fetchLtcPriceInDollars();
 
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.ceil(price * voucher.amount * 100),
@@ -56,38 +49,23 @@ export class PaymentController {
         },
       });
 
-      if (!voucher) {
-        return res.status(404).json({ message: "Voucher not found" });
-      }
-
-      // const newVoucher = {
-      //   code: voucher.code,
-      //   cryptoType: voucher.cryptoType,
-      //   amount: voucher.amount,
-      //   redeemed: false,
-      //   addedAt: new Date(),
-      //   buyer_unique_voucher_code: generateRandomCode(16),
-      // };
-
-      // user.vouchers.push(newVoucher);
-      // await user.save();
-
-      return res.status(200).json({
-        clientSecret: paymentIntent.client_secret,
-        pk: process.env.STRIPE_PUBLISHABLE_KEY,
-      });
+      return sendSuccessResponse(
+        res,
+        "",
+        {
+          clientSecret: paymentIntent.client_secret,
+          pk: process.env.STRIPE_PUBLISHABLE_KEY,
+        },
+        200
+      );
     } catch (error) {
-      console.error(error);
-      return res
-        .status(500)
-        .json({ message: "Error creating payment intent", error });
+      next(createHttpError(500, "Error creating payment intent", error));
     }
-  }
+  };
 
-  static async handlePaymentWebhook(
-    req: Request,
-    res: Response
-  ): Promise<Response> {
+  ////////////////////////////////////////////////////////////////////////////////////////////////
+
+  static handlePaymentWebhook: ctrlrFunc = async (req, res, next) => {
     const event = req.body;
 
     if (event.type === "payment_intent.succeeded") {
@@ -97,12 +75,14 @@ export class PaymentController {
         const { userId, voucherId } = paymentIntent.metadata;
         const user = await userModel.findById(userId);
         if (!user) {
-          return res.status(404).json({ message: "User not found" });
+          next(createHttpError(404, "User not found"));
+          return;
         }
 
         const voucher = await Voucher.findById(voucherId);
         if (!voucher) {
-          return res.status(404).json({ message: "Voucher not found" });
+          next(createHttpError(404, "Voucher not found"));
+          return;
         }
 
         const newVoucher: any = {
@@ -121,121 +101,24 @@ export class PaymentController {
           voucherCode: voucher.code,
         });
 
-        const html = `<!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Thank You for Your Purchase</title>
-        <style>
-          body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-            color: #333;
-          }
-          .container {
-            width: 100%;
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-          }
-          .header {
-            background-color: #007bff;
-            color: #ffffff;
-            text-align: center;
-            padding: 20px;
-            font-size: 24px;
-          }
-          .content {
-            padding: 30px;
-          }
-          .content h1 {
-            font-size: 22px;
-            margin-bottom: 20px;
-          }
-          .content p {
-            font-size: 16px;
-            line-height: 1.6;
-            margin-bottom: 20px;
-          }
-          .details {
-            background-color: #f9f9f9;
-            padding: 15px;
-            border-radius: 5px;
-          }
-          .details h2 {
-            font-size: 18px;
-            margin-bottom: 10px;
-            color: #007bff;
-          }
-          .details p {
-            margin: 5px 0;
-            font-size: 16px;
-          }
-          .footer {
-            text-align: center;
-            padding: 20px;
-            background-color: #f4f4f4;
-            font-size: 14px;
-            color: #999;
-          }
-          .footer a {
-            color: #007bff;
-            text-decoration: none;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <!-- Email Header -->
-          <div class="header">
-            Thank You for Your Purchase!
-          </div>
-      
-          <!-- Email Body -->
-          <div class="content">
-            <h1>Hi,</h1>
-            <p>Thank you for purchasing a crypto voucher from us! We truly appreciate your business and are here to make sure you have the best experience possible.</p>
-            <p>Below are the details of your voucher:</p>
-      
-            <!-- Voucher Details -->
-            <div class="details">
-              <h2>Voucher Details</h2>
-              <p><strong>Voucher Code:</strong> ${
-                newVoucher.buyer_unique_voucher_code
-              }</p>
-              <p><strong>Voucher:</strong> ${newVoucher.amount} LTC</p>
-              <p><strong>Amount Paid:</strong> 
-              ${Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: "USD",
-              }).format(paymentIntent.amount / 100)}
-            </p>
-            
-              <p><strong>Date of Purchase:</strong> ${newVoucher.addedAt}</p>
-            </div>
-      
-            <p>If you have any questions or need further assistance, feel free to <a href="mailto:support@vouchercv.com">contact us</a>.</p>
-      
-            <p>Best regards,</p>
-            <p><strong>CV Voucher</strong></p>
-          </div>
-      
-          <!-- Email Footer -->
-          <div class="footer">
-            <p>&copy; 2024 CV Voucher. All rights reserved.</p>
-            <p><a href="#">Unsubscribe</a> | <a href="#">Privacy Policy</a></p>
-          </div>
-        </div>
-      </body>
-      </html>
-      `;
+        const templatePath = path.join(
+          __dirname,
+          "templates",
+          "buyVoucherEmailTemplate.html"
+        );
+        const htmlTemplate = await readHTMLFile(templatePath);
+
+        const template = Handlebars.compile(htmlTemplate);
+
+        const html = template({
+          voucherCode: newVoucher.buyer_unique_voucher_code,
+          amount: newVoucher.amount,
+          amountPaid: Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
+          }).format(paymentIntent.amount / 100),
+          addedAt: newVoucher.addedAt,
+        });
 
         await sendEmail({
           subject: "Your Crypto Voucher Purchase is Complete! ",
@@ -249,54 +132,16 @@ export class PaymentController {
     }
 
     return res.status(200).json({ received: true }); //
-  }
+  };
 
-  static async fetchLtcPriceInDollars(): Promise<number | null> {
-    try {
-      const response = await axios.get(
-        "https://api.coingecko.com/api/v3/simple/price",
-        {
-          params: {
-            ids: "litecoin",
-            vs_currencies: "usd",
-          },
-        }
-      );
+  ////////////////////////////////////////////////////////////////////////////////////////////////
 
-      const ltcPriceInDollars = response.data.litecoin.usd;
-      return ltcPriceInDollars;
-    } catch (error) {
-      console.error("Error fetching LTC price:", error);
-      return null;
-    }
-  }
-
-  static async sendLitecoinTransaction(
-    transactionData: LitecoinTransactionData
-  ): Promise<any> {
-    const url = "https://api.tatum.io/v3/litecoin/transaction";
-
-    try {
-      const response = await axios.post(url, transactionData, {
-        headers: {
-          accept: "application/json",
-          "content-type": "application/json",
-          "x-api-key": process.env.TATUM_API_KEY,
-        },
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error("Error sending Litecoin transaction:", error);
-      throw error;
-    }
-  }
-
-  static async getAmountToPay(req: Request, res: Response): Promise<Response> {
+  static getAmountToPay: ctrlrFunc = async (req, res, next) => {
     const { email, buyer_unique_voucher_code } = req.body;
     try {
       if (!email || !buyer_unique_voucher_code) {
-        return res.status(400).json({ message: "Bad request" });
+        next(createHttpError.BadRequest());
+        return;
       }
       const user = await userModel.findOne({ email });
 
@@ -307,37 +152,51 @@ export class PaymentController {
         );
 
         if (!voucher) {
-          return res.status(400).json({
-            message: `Invalid voucher code: ${buyer_unique_voucher_code}`,
-          });
+          next(
+            createHttpError.BadRequest(
+              `Invalid voucher code: ${buyer_unique_voucher_code}`
+            )
+          );
+          return;
         }
 
-        const price = await PaymentController.fetchLtcPriceInDollars();
+        const price = await fetchLtcPriceInDollars();
         const ltc_to_pay = (voucher.amount - 0.0004) / price;
-        return res.status(200).json({
-          message: ltc_to_pay,
-        });
+
+        return sendSuccessResponse(
+          res,
+          "",
+          {
+            message: ltc_to_pay,
+          },
+          200
+        );
       }
 
-      return res.status(500).json({
-        message:
-          "This email address is not on our system. Please use a valid email address",
-      });
+      next(
+        createHttpError(
+          400,
+          "This email address is not on our system. Please use a valid email address"
+        )
+      );
+      return;
     } catch (error) {
-      return res.status(500).json({ message: "Internal server error", error });
+      next(createHttpError.InternalServerError());
     }
-  }
+  };
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Redeem a voucher
-  static async redeemVoucher(req: Request, res: Response): Promise<Response> {
+  static redeemVoucher: ctrlrFunc = async (req, res, next) => {
     const { buyer_unique_voucher_code, email, walletAddress } = req.body;
     let ltc_to_pay = 0;
     try {
       if (!buyer_unique_voucher_code || !email || !walletAddress) {
-        return res.status(400).json({ message: "Bad request" });
+        next(createHttpError.BadRequest());
+        return;
       }
       const user = await userModel.findOne({ email });
-      // console.log(user);
 
       if (user) {
         const voucher = user.vouchers.find(
@@ -346,15 +205,19 @@ export class PaymentController {
         );
 
         if (!voucher) {
-          return res.status(400).json({
-            message: `Invalid voucher code: ${buyer_unique_voucher_code}`,
-          });
+          next(
+            createHttpError.BadRequest(
+              `Invalid voucher code: ${buyer_unique_voucher_code}`
+            )
+          );
+          return;
         }
 
         if (voucher.redeemed) {
-          return res.status(400).json({ message: "Voucher already redeemed" });
+          next(createHttpError.BadRequest("Voucher already redeemed"));
+          return;
         }
-        const price = await PaymentController.fetchLtcPriceInDollars();
+        const price = await fetchLtcPriceInDollars();
         ltc_to_pay = (voucher.amount - 0.0004) / price;
 
         // (voucher.amount - 2.5 - (voucher.amount * 0.15)) / price;
@@ -363,7 +226,7 @@ export class PaymentController {
         //   .status(200)
         //   .json({ message: "Voucher redeemed", ltc_to_pay });
         try {
-          const response_ltc = await PaymentController.sendLitecoinTransaction({
+          const response_ltc = await sendLitecoinTransaction({
             changeAddress: process.env.PAYMENT_WALLET,
             fee: "0.0015",
             fromAddress: [
@@ -383,120 +246,13 @@ export class PaymentController {
           voucher.redeemed = true;
           await user.save();
 
-          const html = `<!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta http-equiv="X-UA-Compatible" content="IE=edge">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Thank You </title>
-            <style>
-              body {
-                font-family: 'Arial', sans-serif;
-                background-color: #f4f4f4;
-                margin: 0;
-                padding: 0;
-                color: #333;
-              }
-              .container {
-                width: 100%;
-                max-width: 600px;
-                margin: 0 auto;
-                background-color: #ffffff;
-                border-radius: 8px;
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-                overflow: hidden;
-              }
-              .header {
-                background-color: #007bff;
-                color: #ffffff;
-                text-align: center;
-                padding: 20px;
-                font-size: 24px;
-              }
-              .content {
-                padding: 30px;
-              }
-              .content h1 {
-                font-size: 22px;
-                margin-bottom: 20px;
-              }
-              .content p {
-                font-size: 16px;
-                line-height: 1.6;
-                margin-bottom: 20px;
-              }
-              .details {
-                background-color: #f9f9f9;
-                padding: 15px;
-                border-radius: 5px;
-              }
-              .details h2 {
-                font-size: 18px;
-                margin-bottom: 10px;
-                color: #007bff;
-              }
-              .details p {
-                margin: 5px 0;
-                font-size: 16px;
-              }
-              .footer {
-                text-align: center;
-                padding: 20px;
-                background-color: #f4f4f4;
-                font-size: 14px;
-                color: #999;
-              }
-              .footer a {
-                color: #007bff;
-                text-decoration: none;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <!-- Email Header -->
-              <div class="header">
-                Thank You for Your Purchase!
-              </div>
-          
-              <!-- Email Body -->
-              <div class="content">
-                <h1>Hi,</h1>
-                <p>Thank you for using our service!  Your crypto voucher has been redeemed successfully </p>
-                <p>Below are the details of your voucher:</p>
-          
-                <!-- Voucher Details -->
-                <div class="details">
-                  <h2>Voucher Details</h2>
-                  <p><strong>Voucher Code:</strong> ${buyer_unique_voucher_code}</p>
-                  <p><strong>Voucher:</strong> ${voucher.amount} LTC</p>
-                  <p><strong>Email:</strong> ${user.email} LTC</p>
-                  <p><strong>Amount Paid:</strong> 
-                  ${Intl.NumberFormat("en-US", {
-                    style: "currency",
-                    currency: "USD",
-                  }).format(Number(ltc_to_pay.toFixed(8)))}
-                </p>
-                <p><strong>Receiving Wallet:</strong> ${walletAddress}</p>
-                  <p><strong>Date of Reedeming:</strong> ${new Date().toUTCString()}</p>
-                </div>
-          
-                <p>If you have any questions or need further assistance, feel free to <a href="mailto:support@vouchercv.com">contact us</a>.</p>
-          
-                <p>Best regards,</p>
-                <p><strong>CV Voucher</strong></p>
-              </div>
-          
-              <!-- Email Footer -->
-              <div class="footer">
-                <p>&copy; 2024 CV Voucher. All rights reserved.</p>
-                <p><a href="#">Unsubscribe</a> | <a href="#">Privacy Policy</a></p>
-              </div>
-            </div>
-          </body>
-          </html>
-          `;
+          // const htmlPath = path.join(
+          //   __dirname,
+          //   "templates",
+          //   "redeemVoucherEmailTemplate.html"
+          // );
+          // const htmlFile = readHTMLFile(htmlPath);
+
           // try {
           //   await sendEmail({
           //     subject: `Your Crypto Voucher ${buyer_unique_voucher_code} Has Been Redeemed! `,
@@ -506,27 +262,29 @@ export class PaymentController {
           //   });
           // } catch (error) {}
 
-          return res.status(200).json({
-            message: "Voucher redeemed",
-            tx: response_ltc.txId,
-          });
+          return sendSuccessResponse(
+            res,
+            "",
+            {
+              message: "Voucher redeemed",
+              tx: response_ltc.txId,
+            },
+            200
+          );
         } catch (error) {
-          console.log(error);
-          return res
-            .status(500)
-            .json({ message: "Internal Server Error", error });
+          next(createHttpError.InternalServerError(error));
         }
       }
 
-      return res.status(400).json({
-        message:
-          "This email address is not on our system. Please use a valid email address",
-      });
+      next(
+        createHttpError(
+          400,
+          "This email address is not on our system. Please use a valid email address"
+        )
+      );
+      return;
     } catch (error) {
-      console.error(error);
-      return res.status(400).json({
-        message: "Internal Server Error",
-      });
+      next(createHttpError.InternalServerError(error));
     }
-  }
+  };
 }
