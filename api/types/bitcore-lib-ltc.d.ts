@@ -1,4 +1,3 @@
-// src/types/bitcore-lib-ltc.d.ts
 declare module "bitcore-lib-ltc" {
   import * as bitcore from "bitcore-lib";
 
