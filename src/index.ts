@@ -1,5 +1,4 @@
 import express from "express";
-import dotenv from "dotenv";
 import connectToDB from "./db/conn";
 import { AuthRouter } from "./routes/AuthRoute";
 import userRoutes from "./routes/UserRoute";
@@ -13,10 +12,8 @@ import { Payment } from "./models/Payment";
 import { errorHandler } from "./middlewares/errorHandler";
 import createHttpError from "http-errors";
 
-dotenv.config();
 
 const app = express();
-const port = 3000;
 
 app.use(cors());
 
@@ -43,20 +40,6 @@ app.all("*", (req, res, next) => {
 
 app.use(errorHandler);
 
-const startApp = async () => {
-  try {
-    const db = await connectToDB();
-    // await userModel.syncIndexes();
-    // await adminModel.syncIndexes();
-    // await Voucher.syncIndexes();
-    // await Payment.syncIndexes();
 
-    app.listen(port, () => {
-      console.log(`Server is running on http://localhost:${port}`);
-    });
-  } catch (error) {
-    console.log(`Could not start server on http://localhost:${port}`);
-  }
-};
 
-startApp();
+export default app

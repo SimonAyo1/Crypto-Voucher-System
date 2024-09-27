@@ -10,8 +10,8 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "*": ["node_modules/*", "api/types/*"]
+      "*": ["node_modules/*", "src/types/*"]
     }
   },
-  "include": ["api/**/*", "api/types/**/*.d.ts"]
+  "include": ["src/**/*", "src/types/**/*.d.ts", "server.ts"]
 }
